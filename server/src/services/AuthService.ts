@@ -1,5 +1,7 @@
+
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import type { SignOptions } from 'jsonwebtoken';
 import { UserRepository } from '@/repositories/index.js';
 import { generateId } from '@/utils/helpers.js';
 
@@ -22,9 +24,14 @@ export interface AuthResponse {
 }
 
 export class AuthService {
-  private static JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
-  private static JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
-  private static JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '30d';
+  private static JWT_SECRET =
+    process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
+
+  private static JWT_EXPIRES_IN =
+    process.env.JWT_EXPIRES_IN || '7d';
+
+  private static JWT_REFRESH_EXPIRES_IN =
+    process.env.JWT_REFRESH_EXPIRES_IN || '30d';
 
   /**
    * Hash a password
@@ -36,15 +43,25 @@ export class AuthService {
   /**
    * Compare password with hash
    */
-  static async verifyPassword(password: string, hash: string): Promise<boolean> {
+  static async verifyPassword(
+    password: string,
+    hash: string
+  ): Promise<boolean> {
     return bcrypt.compare(password, hash);
   }
 
   /**
    * Generate JWT token
    */
-  static generateToken(payload: TokenPayload, expiresIn: string = this.JWT_EXPIRES_IN): string {
-    return jwt.sign(payload, this.JWT_SECRET, { expiresIn });
+  static generateToken(
+    payload: TokenPayload,
+    expiresIn: string = this.JWT_EXPIRES_IN
+  ): string {
+    const options: SignOptions = {
+      expiresIn: expiresIn as SignOptions['expiresIn'],
+    };
+
+    return jwt.sign(payload, this.JWT_SECRET, options);
   }
 
   /**
@@ -68,9 +85,15 @@ export class AuthService {
   /**
    * Register a new user
    */
-  static async register(email: string, name: string, password: string, role: string = 'candidate'): Promise<AuthResponse> {
+  static async register(
+    email: string,
+    name: string,
+    password: string,
+    role: string = 'candidate'
+  ): Promise<AuthResponse> {
     // Check if user already exists
     const existingUser = await UserRepository.findByEmail(email);
+
     if (existingUser) {
       throw new Error('Email already registered');
     }
@@ -80,6 +103,7 @@ export class AuthService {
 
     // Create user
     const userId = generateId();
+
     const user = await UserRepository.create(userId, {
       email,
       name,
@@ -113,15 +137,23 @@ export class AuthService {
   /**
    * Login user
    */
-  static async login(email: string, password: string): Promise<AuthResponse> {
+  static async login(
+    email: string,
+    password: string
+  ): Promise<AuthResponse> {
     // Find user by email
     const user = await UserRepository.findByEmail(email);
+
     if (!user) {
       throw new Error('Invalid credentials');
     }
 
     // Verify password
-    const passwordValid = await this.verifyPassword(password, user.password_hash);
+    const passwordValid = await this.verifyPassword(
+      password,
+      user.password_hash
+    );
+
     if (!passwordValid) {
       throw new Error('Invalid credentials');
     }
@@ -154,6 +186,7 @@ export class AuthService {
    */
   static refreshToken(refreshToken: string): { token: string } {
     const payload = this.verifyToken(refreshToken);
+
     if (!payload) {
       throw new Error('Invalid refresh token');
     }
@@ -172,11 +205,13 @@ export class AuthService {
    */
   static async validateToken(token: string) {
     const payload = this.verifyToken(token);
+
     if (!payload) {
       throw new Error('Invalid token');
     }
 
     const user = await UserRepository.findById(payload.userId);
+
     if (!user) {
       throw new Error('User not found');
     }

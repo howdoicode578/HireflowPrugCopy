@@ -1,4 +1,5 @@
-import { RowDataPacket } from 'mysql2/promise';
+
+import type { RowDataPacket } from 'mysql2/promise';
 import { query, queryOne, execute } from '@/utils/db.js';
 
 export interface IUser extends RowDataPacket {
@@ -13,7 +14,16 @@ export interface IUser extends RowDataPacket {
   updated_at: string;
 }
 
-export interface IUserPublic extends Omit<IUser, 'password_hash'> {}
+export interface IUserPublic extends RowDataPacket {
+  id: string;
+  email: string;
+  name: string;
+  avatar?: string;
+  role: 'admin' | 'recruiter' | 'hiring_manager' | 'viewer' | 'candidate';
+  department?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 export class UserRepository {
   /**
@@ -24,7 +34,8 @@ export class UserRepository {
       'SELECT id, email, name, avatar, role, department, created_at, updated_at FROM users WHERE id = ?',
       [id]
     );
-    return user || null;
+
+    return user ? (user as IUserPublic) : null;
   }
 
   /**
@@ -40,7 +51,10 @@ export class UserRepository {
   /**
    * Get all users (with pagination)
    */
-  static async findAll(limit: number = 100, offset: number = 0): Promise<IUserPublic[]> {
+  static async findAll(
+    limit: number = 100,
+    offset: number = 0
+  ): Promise<IUserPublic[]> {
     return query<IUserPublic[]>(
       'SELECT id, email, name, avatar, role, department, created_at, updated_at FROM users LIMIT ? OFFSET ?',
       [limit, offset]
@@ -60,45 +74,65 @@ export class UserRepository {
   /**
    * Create a new user
    */
-  static async create(id: string, data: {
-    email: string;
-    name: string;
-    password_hash: string;
-    role?: string;
-    department?: string;
-    avatar?: string;
-  }): Promise<IUserPublic> {
+  static async create(
+    id: string,
+    data: {
+      email: string;
+      name: string;
+      password_hash: string;
+      role?: string;
+      department?: string;
+      avatar?: string;
+    }
+  ): Promise<IUserPublic> {
     const role = data.role || 'candidate';
-    
+
     await execute(
       'INSERT INTO users (id, email, name, password_hash, role, department, avatar) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, data.email, data.name, data.password_hash, role, data.department || null, data.avatar || null]
+      [
+        id,
+        data.email,
+        data.name,
+        data.password_hash,
+        role,
+        data.department || null,
+        data.avatar || null,
+      ]
     );
 
     const user = await this.findById(id);
-    if (!user) throw new Error('Failed to create user');
+
+    if (!user) {
+      throw new Error('Failed to create user');
+    }
+
     return user;
   }
 
   /**
    * Update user
    */
-  static async update(id: string, data: Partial<{
-    name: string;
-    avatar: string;
-    department: string;
-  }>): Promise<IUserPublic> {
+  static async update(
+    id: string,
+    data: Partial<{
+      name: string;
+      avatar: string;
+      department: string;
+    }>
+  ): Promise<IUserPublic> {
     const updates: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
 
     if (data.name !== undefined) {
       updates.push('name = ?');
       values.push(data.name);
     }
+
     if (data.avatar !== undefined) {
       updates.push('avatar = ?');
       values.push(data.avatar);
     }
+
     if (data.department !== undefined) {
       updates.push('department = ?');
       values.push(data.department);
@@ -106,18 +140,27 @@ export class UserRepository {
 
     if (updates.length === 0) {
       const user = await this.findById(id);
-      if (!user) throw new Error('User not found');
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
       return user;
     }
 
     values.push(id);
+
     await execute(
       `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
       values
     );
 
     const user = await this.findById(id);
-    if (!user) throw new Error('Failed to update user');
+
+    if (!user) {
+      throw new Error('Failed to update user');
+    }
+
     return user;
   }
 
@@ -129,6 +172,7 @@ export class UserRepository {
       'DELETE FROM users WHERE id = ?',
       [id]
     );
+
     return result.affectedRows > 0;
   }
 }

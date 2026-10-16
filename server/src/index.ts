@@ -1,3 +1,4 @@
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -32,16 +33,27 @@ app.use('/api/activities', activitiesRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Error handling middleware
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Server error:', err);
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal server error',
-  });
-});
+app.use(
+  (
+    err: any,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction
+  ) => {
+    console.error('Server error:', err);
+
+    res.status(err.status || 500).json({
+      error: err.message || 'Internal server error',
+    });
+  }
+);
 
 // Start server
 const server = app.listen(PORT, () => {
@@ -52,12 +64,22 @@ const server = app.listen(PORT, () => {
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\n✓ Shutting down gracefully...');
-  server.close(() => {
-    console.log('✓ Server closed');
-    pool.end(() => {
+
+  server.close(async (error) => {
+    if (error) {
+      console.error('Error closing server:', error);
+      process.exitCode = 1;
+    } else {
+      console.log('✓ Server closed');
+    }
+
+    try {
+      await pool.end();
       console.log('✓ Database pool closed');
-      process.exit(0);
-    });
+    } catch (poolError) {
+      console.error('Error closing database pool:', poolError);
+      process.exitCode = 1;
+    }
   });
 });
 
